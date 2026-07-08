@@ -1,0 +1,42 @@
+# Maven build output
+target/
+*.jar
+*.war
+*.ear
+
+# Maven wrapper
+.mvn/wrapper/maven-wrapper.jar
+
+# IDE — IntelliJ IDEA
+.idea/
+*.iml
+*.iws
+*.ipr
+out/
+
+# IDE — VS Code / Kiro
+.vscode/
+*.code-workspace
+
+# IDE — Eclipse / STS
+.classpath
+.project
+.settings/
+bin/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Spring Boot DevTools restart file
+.spring-boot-devtools.properties
+
+# Environment / secrets — never commit these
+.env
+*.env
+application-local.properties
+application-secret.properties
