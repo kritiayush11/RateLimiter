@@ -18,13 +18,27 @@ mvn spring-boot:run
 
 Server starts on `http://localhost:8080`.
 
+### Demo UI
+
+Open `http://localhost:8080/` in a browser. Three buttons are displayed:
+
+| Button           | Action                                               |
+| ---------------- | ---------------------------------------------------- |
+| **GET /general** | Calls `GET /api/general` — 20 req / 60 s limit       |
+| **POST /submit** | Calls `POST /api/submit` — 5 req / 60 s limit        |
+| **GET /status**  | Calls `GET /api/status` — shows current window state |
+
+Every button click fires a `fetch` request using the default API key `demo-user`. The JSON response is displayed below the buttons, along with live rate-limit header badges (`X-RateLimit-Limit`, `X-RateLimit-Remaining`, `X-RateLimit-Reset`). When remaining hits 0 the badge turns amber. A 429 response is shown in red with the `retryAfterSeconds` field from the JSON body.
+
+The page itself (`GET /`) is served by `UiController` and is **not** covered by the rate-limit interceptor (interceptor path pattern is `/api/**`).
+
 ### Run all tests
 
 ```bash
 mvn test
 ```
 
-Expected output: **18 tests, 0 failures, 0 errors** (10 unit + 8 integration).
+Expected output: **23 tests, 0 failures, 0 errors** (10 unit + 8 integration + 5 UI).
 
 ### curl examples
 
@@ -50,22 +64,22 @@ done
 
 ### Response headers (every allowed response)
 
-| Header | Description |
-|---|---|
-| `X-RateLimit-Limit` | Configured max requests per window |
-| `X-RateLimit-Remaining` | Requests left in the current window |
-| `X-RateLimit-Reset` | Unix epoch second when the window resets |
-| `Retry-After` | Seconds until retry (429 responses only) |
+| Header                  | Description                              |
+| ----------------------- | ---------------------------------------- |
+| `X-RateLimit-Limit`     | Configured max requests per window       |
+| `X-RateLimit-Remaining` | Requests left in the current window      |
+| `X-RateLimit-Reset`     | Unix epoch second when the window resets |
+| `Retry-After`           | Seconds until retry (429 responses only) |
 
 ---
 
 ## API Endpoints
 
-| Endpoint | Method | Limit |
-|---|---|---|
-| `/api/general` | GET | 20 req / 60 s |
-| `/api/submit` | POST | 5 req / 60 s |
-| `/api/status` | GET | 60 req / 60 s |
+| Endpoint       | Method | Limit         |
+| -------------- | ------ | ------------- |
+| `/api/general` | GET    | 20 req / 60 s |
+| `/api/submit`  | POST   | 5 req / 60 s  |
+| `/api/status`  | GET    | 60 req / 60 s |
 
 Limits are configured in `src/main/resources/application.properties` — no code change needed to add or adjust endpoints (Open/Closed Principle).
 
@@ -91,11 +105,11 @@ This project uses `HandlerInterceptor` because:
 
 Three mainstream algorithms were evaluated:
 
-| | Fixed Window Counter | Sliding Window Log | Token Bucket |
-|---|---|---|---|
-| **Accuracy** | Low — burst at boundary | High | Medium-High |
-| **Memory** | One counter per client | One timestamp per request | One bucket per client |
-| **Complexity** | Trivial | Medium | Medium |
+|                   | Fixed Window Counter    | Sliding Window Log        | Token Bucket           |
+| ----------------- | ----------------------- | ------------------------- | ---------------------- |
+| **Accuracy**      | Low — burst at boundary | High                      | Medium-High            |
+| **Memory**        | One counter per client  | One timestamp per request | One bucket per client  |
+| **Complexity**    | Trivial                 | Medium                    | Medium                 |
 | **Main weakness** | 2× burst at window edge | Memory grows with traffic | Allows burst by design |
 
 **Why Sliding Window Log:**
@@ -151,6 +165,7 @@ end
 ```
 
 Key design points:
+
 - A Redis sorted set replaces the in-memory `List<Long>`. The score is the timestamp; `ZREMRANGEBYSCORE` is the eviction step.
 - The entire check-and-record is a single Lua script, so it is atomic across all Redis clients — no race conditions.
 - `PEXPIRE` on the key means Redis handles its own memory cleanup; no scheduled cleanup task needed.
@@ -163,31 +178,34 @@ The `RateLimiter` interface remains unchanged — the swap is a single `@Service
 
 ## AI Assistance Log (Kiro)
 
-| Stage | AI Contribution | Human Verification |
-|---|---|---|
-| Requirements analysis | Parsed spec, extracted all functional and technical requirements | Confirmed all spec points captured |
-| Design decisions | Presented pros/cons for all three algorithm options and two Spring mechanisms | Human selected recommended options |
-| Architecture | Generated SOLID mapping, Mermaid diagram, project structure | Reviewed for correctness |
-| Test case design | Derived 16 test cases from spec requirements | Verified boundary cases (T2, T3, T8, T16) |
-| Task ordering | Ordered tasks by TDD dependency (interface → service → config → interceptor → controller) | Confirmed incremental build order |
-| Implementation | Generated all source files and test files following the plan | Reviewed algorithm logic, thread-safety, eviction boundary |
-| Bug fix | Identified T7 test logic error (window boundary off-by-one) and corrected it | Confirmed fix was mathematically correct |
-| README | Authored all required sections | Reviewed for accuracy |
+| Stage                 | AI Contribution                                                                           | Human Verification                                         |
+| --------------------- | ----------------------------------------------------------------------------------------- | ---------------------------------------------------------- |
+| Requirements analysis | Parsed spec, extracted all functional and technical requirements                          | Confirmed all spec points captured                         |
+| Design decisions      | Presented pros/cons for all three algorithm options and two Spring mechanisms             | Human selected recommended options                         |
+| Architecture          | Generated SOLID mapping, Mermaid diagram, project structure                               | Reviewed for correctness                                   |
+| Test case design      | Derived 16 test cases from spec requirements                                              | Verified boundary cases (T2, T3, T8, T16)                  |
+| Task ordering         | Ordered tasks by TDD dependency (interface → service → config → interceptor → controller) | Confirmed incremental build order                          |
+| Implementation        | Generated all source files and test files following the plan                              | Reviewed algorithm logic, thread-safety, eviction boundary |
+| Bug fix               | Identified T7 test logic error (window boundary off-by-one) and corrected it              | Confirmed fix was mathematically correct                   |
+| README                | Authored all required sections                                                            | Reviewed for accuracy                                      |
 
 **Tools used:** Kiro AI (Planning + Implementation agent, Autopilot mode)
 
 **Where AI helped most:**
+
 - Scaffold generation — `pom.xml`, package structure, all boilerplate DTOs and records produced in one pass.
 - Test structure — all 18 test cases (names, assertions, helper classes) derived directly from the spec table.
 - Clock injection pattern — `MutableClock extends Clock` approach for testable time control without `Thread.sleep`.
 
 **What was manually verified:**
+
 - Sliding window eviction boundary: the cutoff is `ts <= nowMs - windowMs` (exclusive lower bound), not `< nowMs - windowMs`. Verified that the `LIMIT`-th request passes and the `(LIMIT+1)`-th is blocked (T2, T3).
 - Thread-safety: `synchronized (timestamps)` block wraps both eviction and insertion atomically; `ConcurrentHashMap.computeIfAbsent` handles concurrent first-request races.
 - T7 test logic: initial version used `WINDOW_SECS - 5` advance, which keeps original timestamps inside the window. Corrected to `WINDOW_SECS + 1` so they fall out.
 - T16 Clock injection: confirmed the test `@TestConfiguration` exposes a single `MutableClock` bean that satisfies both `Clock` and `MutableClock` injection points, avoiding a duplicate-primary ambiguity in Spring Boot 3.
 
 **How correctness was validated:**
+
 - TDD — all tests written before or alongside implementation; red → green cycle confirmed.
 - `mvn test` — 18/18 tests green, 0 failures, 0 errors.
 - Concurrent thread test (T8) — 100 threads fired simultaneously; exactly `LIMIT` allowed, rest blocked.
@@ -202,7 +220,8 @@ src/
 │   ├── java/com/chegg/ratelimiter/
 │   │   ├── RateLimiterApplication.java          # @SpringBootApplication + @EnableScheduling
 │   │   ├── controller/
-│   │   │   └── ApiController.java               # GET /api/general, POST /api/submit, GET /api/status
+│   │   │   ├── ApiController.java               # GET /api/general, POST /api/submit, GET /api/status
+│   │   │   └── UiController.java                # GET / → serves index.html (no rate-limit logic)
 │   │   ├── interceptor/
 │   │   │   └── RateLimitInterceptor.java        # preHandle: key check, allow/deny, headers
 │   │   ├── service/
@@ -219,13 +238,16 @@ src/
 │   │       ├── ErrorResponse.java               # 429 JSON body
 │   │       └── RateLimitEndpointConfig.java     # per-endpoint limit + windowSizeInSeconds
 │   └── resources/
-│       └── application.properties
+│       ├── application.properties
+│       └── templates/
+│           └── index.html                       # UI page — 3 buttons, JS fetch, header badges
 └── test/
     ├── java/com/chegg/ratelimiter/
     │   ├── service/
     │   │   └── RateLimiterServiceTest.java      # T1–T8 + cleanup + getStatus (10 tests)
     │   └── controller/
-    │       └── ApiControllerTest.java           # T9–T16 MockMvc integration (8 tests)
+    │       ├── ApiControllerTest.java           # T9–T16 MockMvc integration (8 tests)
+    │       └── UiControllerTest.java            # T17–T21 UI page + button endpoints (5 tests)
     └── resources/
         └── application-test.properties         # allow-bean-definition-overriding=true
 ```
@@ -237,6 +259,7 @@ src/
 - [x] Java 17
 - [x] Spring Boot 3.x
 - [x] Spring Web (no JPA)
+- [x] Thymeleaf (UI template engine)
 - [x] `ConcurrentHashMap` for in-memory state
 - [x] Maven build tool
 - [x] JUnit 5 + MockMvc
@@ -244,6 +267,6 @@ src/
 - [x] No external rate-limiting libraries (`bucket4j`, `resilience4j`, `guava`, etc.)
 - [x] No Spring Security
 - [x] No distributed rate limiting
-- [x] No frontend
-- [x] All 18 tests pass with `mvn test`
+- [x] UI page at `GET /` with 3 buttons (General, Submit, Status)
+- [x] All 23 tests pass with `mvn test`
 - [x] Service starts with `mvn spring-boot:run`

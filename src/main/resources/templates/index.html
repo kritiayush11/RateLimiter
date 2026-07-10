@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Rate Limiter Demo</title>
+    <style>
+        /* ── Reset & base ─────────────────────────────── */
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background: #f0f2f5;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        /* ── Card ─────────────────────────────────────── */
+        .card {
+            background: #ffffff;
+            border-radius: 12px;
+            box-shadow: 0 4px 24px rgba(0,0,0,.10);
+            padding: 2.5rem 3rem;
+            width: 100%;
+            max-width: 520px;
+        }
+
+        h1 {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: #1a1a2e;
+            margin-bottom: .4rem;
+        }
+
+        .subtitle {
+            font-size: .9rem;
+            color: #6b7280;
+            margin-bottom: 2rem;
+        }
+
+        /* ── Buttons ──────────────────────────────────── */
+        .btn-group {
+            display: flex;
+            gap: .75rem;
+            flex-wrap: wrap;
+            margin-bottom: 1.75rem;
+        }
+
+        button {
+            flex: 1;
+            min-width: 130px;
+            padding: .65rem 1rem;
+            border: none;
+            border-radius: 8px;
+            font-size: .95rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: opacity .15s, transform .1s;
+        }
+
+        button:active { transform: scale(.97); }
+        button:disabled { opacity: .55; cursor: not-allowed; }
+
+        #btn-general { background: #4f46e5; color: #fff; }
+        #btn-general:hover:not(:disabled) { background: #4338ca; }
+
+        #btn-submit  { background: #10b981; color: #fff; }
+        #btn-submit:hover:not(:disabled)  { background: #059669; }
+
+        #btn-status  { background: #f59e0b; color: #fff; }
+        #btn-status:hover:not(:disabled)  { background: #d97706; }
+
+        /* ── Response box ─────────────────────────────── */
+        .response-label {
+            font-size: .8rem;
+            font-weight: 600;
+            color: #6b7280;
+            text-transform: uppercase;
+            letter-spacing: .05em;
+            margin-bottom: .4rem;
+        }
+
+        #response-box {
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            padding: 1rem 1.2rem;
+            min-height: 100px;
+            font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+            font-size: .85rem;
+            color: #1e293b;
+            white-space: pre-wrap;
+            word-break: break-all;
+            transition: border-color .2s;
+        }
+
+        #response-box.ok     { border-color: #10b981; }
+        #response-box.error  { border-color: #ef4444; color: #dc2626; }
+        #response-box.loading { color: #94a3b8; }
+
+        /* ── Rate-limit header strip ──────────────────── */
+        #header-strip {
+            margin-top: 1rem;
+            display: none;
+            gap: .5rem;
+            flex-wrap: wrap;
+        }
+
+        .badge {
+            background: #ede9fe;
+            color: #5b21b6;
+            border-radius: 999px;
+            font-size: .75rem;
+            font-weight: 600;
+            padding: .25rem .75rem;
+        }
+
+        .badge.warn { background: #fef3c7; color: #92400e; }
+    </style>
+</head>
+<body>
+<main class="card" role="main">
+    <h1>Rate Limiter Demo</h1>
+    <p class="subtitle">
+        Each button calls a backend endpoint using the default API key
+        <code>demo-user</code>. Watch the rate-limit headers update with every click.
+    </p>
+
+    <div class="btn-group" role="group" aria-label="API endpoint buttons">
+        <button id="btn-general" onclick="callApi('GET', '/api/general')">
+            GET /general
+        </button>
+        <button id="btn-submit" onclick="callApi('POST', '/api/submit')">
+            POST /submit
+        </button>
+        <button id="btn-status" onclick="callApi('GET', '/api/status')">
+            GET /status
+        </button>
+    </div>
+
+    <p class="response-label" id="response-label">Response</p>
+    <div id="response-box" role="region" aria-live="polite" aria-labelledby="response-label">
+        Click a button to call an endpoint.
+    </div>
+
+    <div id="header-strip" role="region" aria-label="Rate limit headers">
+        <span class="badge" id="badge-limit"  title="X-RateLimit-Limit"></span>
+        <span class="badge" id="badge-remaining" title="X-RateLimit-Remaining"></span>
+        <span class="badge" id="badge-reset" title="X-RateLimit-Reset"></span>
+    </div>
+</main>
+
+<script>
+    /**
+     * Default API key used for all requests from the UI.
+     * Single Responsibility: all fetch logic is in this one function.
+     */
+    const DEFAULT_API_KEY = 'demo-user';
+
+    /**
+     * Calls the given endpoint and displays the JSON response.
+     *
+     * @param {string} method  HTTP method ('GET' or 'POST')
+     * @param {string} path    Endpoint path e.g. '/api/general'
+     */
+    async function callApi(method, path) {
+        const box   = document.getElementById('response-box');
+        const strip = document.getElementById('header-strip');
+
+        // Disable all buttons while the request is in-flight
+        const buttons = document.querySelectorAll('button');
+        buttons.forEach(b => b.disabled = true);
+
+        box.className  = 'loading';
+        box.textContent = 'Calling ' + method + ' ' + path + ' …';
+        strip.style.display = 'none';
+
+        try {
+            const res = await fetch(path, {
+                method: method,
+                headers: { 'X-API-Key': DEFAULT_API_KEY }
+            });
+
+            const statusText = res.status + ' ' + res.statusText;
+            let body;
+            try {
+                body = await res.json();
+            } catch (_) {
+                body = { raw: await res.text() };
+            }
+
+            const pretty = JSON.stringify(body, null, 2);
+            box.textContent = statusText + '\n\n' + pretty;
+            box.className   = res.ok ? 'ok' : 'error';
+
+            // Show rate-limit response headers when present
+            const limit     = res.headers.get('X-RateLimit-Limit');
+            const remaining = res.headers.get('X-RateLimit-Remaining');
+            const reset     = res.headers.get('X-RateLimit-Reset');
+
+            if (limit !== null) {
+                document.getElementById('badge-limit').textContent =
+                    'Limit: ' + limit;
+                const remBadge = document.getElementById('badge-remaining');
+                remBadge.textContent = 'Remaining: ' + remaining;
+                remBadge.className   = 'badge' + (parseInt(remaining) === 0 ? ' warn' : '');
+                document.getElementById('badge-reset').textContent =
+                    'Resets: ' + new Date(parseInt(reset) * 1000).toLocaleTimeString();
+                strip.style.display = 'flex';
+            }
+
+        } catch (err) {
+            box.textContent = 'Network error: ' + err.message;
+            box.className   = 'error';
+        } finally {
+            buttons.forEach(b => b.disabled = false);
+        }
+    }
+</script>
+</body>
+</html>
