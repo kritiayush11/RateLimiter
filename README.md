@@ -15,8 +15,7 @@ No external rate-limiting libraries. Pure `ConcurrentHashMap` in-memory state, T
 ```bash
 export JAVA_HOME=$(/usr/libexec/java_home -v 17)   # macOS only — skip if Java 17 is default
 mvn spring-boot:run
-```
-
+`
 Server starts on `http://localhost:8080`.
 
 ### Demo UI
