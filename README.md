@@ -1,4 +1,5 @@
 # Rate Limiter — Spring Boot (Sliding Window Log)
+Attached the Plan.md file also so that you can check how i make a plan 
 
 A production-quality, from-scratch rate limiter built with Java 17 and Spring Boot 3.
 No external rate-limiting libraries. Pure `ConcurrentHashMap` in-memory state, TDD, and SOLID principles throughout.
@@ -189,6 +190,10 @@ The `RateLimiter` interface remains unchanged — the swap is a single `@Service
 | Bug fix               | Identified T7 test logic error (window boundary off-by-one) and corrected it              | Confirmed fix was mathematically correct                   |
 | README                | Authored all required sections                                                            | Reviewed for accuracy                                      |
 
+** Some Exact Example
+"You are a Backend specialist , Now help me make this Rate Limiter with the help of attached pdf Identify the Test cases first "
+"make it in the plan use the TDD (Test Driven Development) approach and follow the SOLID principles"
+
 **Tools used:** Kiro AI (Planning + Implementation agent, Autopilot mode)
 
 **Where AI helped most:**
@@ -253,6 +258,18 @@ src/
 ```
 
 ---
+
+
+## Result Screenshots
+
+<img width="1023" height="327" alt="Screenshot 2026-07-08 at 8 16 17 PM" src="https://github.com/user-attachments/assets/c059b09b-b074-463b-b420-195554106d7c" />
+<img width="1051" height="322" alt="Screenshot 2026-07-08 at 8 20 58 PM" src="https://github.com/user-attachments/assets/4a253c54-fbfd-4198-99db-bf92938d7846" />
+<img width="1063" height="350" alt="Screenshot 2026-07-08 at 8 21 18 PM" src="https://github.com/user-attachments/assets/5d80c654-47d4-4732-bfd6-5f362afdabef" />
+<img width="1058" height="324" alt="Screenshot 2026-07-08 at 8 21 44 PM" src="https://github.com/user-attachments/assets/c1e58b6c-2954-4175-b31d-2e0599c54c52" />
+<img width="1063" height="354" alt="Screenshot 2026-07-08 at 8 22 21 PM" src="https://github.com/user-attachments/assets/da3fd8c4-6b14-49e6-8ae1-2adf1be3d842" />
+<img width="1055" height="241" alt="Screenshot 2026-07-08 at 8 23 02 PM" src="https://github.com/user-attachments/assets/e00b637e-ec60-43da-ab38-5826a3bf00eb" />
+<img width="1066" height="92" alt="Screenshot 2026-07-08 at 8 23 33 PM" src="https://github.com/user-attachments/assets/a2791427-13b2-4276-8d38-fa73a844a5e2" />
+
 
 ## Technical Requirements
 
